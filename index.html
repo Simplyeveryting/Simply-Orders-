@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Simply Orders Pro</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://js.yoco.com/sdk/v1/yoco-sdk-v1.js"></script>
+    <style>
+        :root { 
+            --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --input: #0f172a; 
+            --sale: #3b82f6; --border: rgba(255,255,255,0.1); --shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
+        }
+        body.light-mode { 
+            --bg: #f1f5f9; --card: #ffffff; --text: #0f172a; --input: #ffffff; 
+            --sale: #2563eb; --border: #cbd5e1; --shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 90px; margin: 0; transition: all 0.2s ease; overflow-x: hidden; }
+        
+        /* Subscription Lock Overlay */
+        #subscription-lock {
+            position: fixed; inset: 0; z-index: 10000; background: #0f172a;
+            display: none; flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+        }
+
+        .page { display: none; padding: 20px 15px; animation: fadeIn 0.3s ease; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .modern-input { background: var(--input) !important; color: var(--text) !important; border: 2px solid var(--border) !important; border-radius: 12px !important; padding: 12px; width: 100%; margin-bottom: 15px; outline: none; font-size: 14px; }
+        .history-card { background: var(--card); border-radius: 18px; border: 1px solid var(--border); padding: 20px; margin-bottom: 15px; box-shadow: var(--shadow); }
+        .nav-bar { background: var(--card); position: fixed; bottom: 0; width: 100%; height: 75px; display: flex; z-index: 1000; border-top: 2px solid var(--border); }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #64748b; cursor: pointer; }
+        .nav-btn.active { color: var(--sale); }
+    </style>
+</head>
+<body class="dark-mode">
+
+    <div id="subscription-lock">
+        <div class="history-card p-8 max-w-md w-full text-center border-blue-500/50">
+            <div class="w-20 h-20 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fas fa-shield-alt text-blue-500 text-3xl"></i>
+            </div>
+            <h1 class="text-2xl font-bold mb-2 uppercase">Simply Orders Pro</h1>
+            <p class="text-slate-400 mb-6 text-sm">Active subscription required. Pay R55 to generate your personal 30-day access code.</p>
+            
+            <div class="bg-slate-900/50 p-4 rounded-xl mb-6 text-left border border-white/5">
+                <div class="flex justify-between mb-2">
+                    <span class="text-slate-500 text-[10px] font-bold">RECURRING CYCLE</span>
+                    <span class="text-blue-400 font-bold">30 Days</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500 text-[10px] font-bold">TOTAL PRICE</span>
+                    <span class="text-white font-bold">R 55.00</span>
+                </div>
+            </div>
+
+            <button id="yoco-pay-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-xl shadow-lg shadow-blue-500/20 text-sm uppercase tracking-widest">
+                Activate Access Now
+            </button>
+            <p class="mt-4 text-[9px] text-slate-500 uppercase tracking-tighter">Secure Payment by Yoco &bull; Instant Activation</p>
+        </div>
+    </div>
+
+    <div id="app-container" style="display:none;">
+        <div class="p-4 flex items-center border-b-2 border-slate-500/10 backdrop-blur-md">
+            <div class="flex-1">
+                <h1 class="text-xs font-black uppercase text-blue-500 tracking-tighter">Simply Orders Pro</h1>
+                <p id="license-label" class="text-[9px] font-bold opacity-50 uppercase tracking-widest">PRO LICENSE ACTIVE</p>
+            </div>
+            <button onclick="toggleSidebar()" class="text-xl p-2"><i class="fas fa-bars"></i></button>
+        </div>
+
+        <div id="overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-[1500] hidden"></div>
+        <div id="sidebar" class="fixed left-[-310px] top-0 w-[300px] h-full bg-slate-800 z-[2000] transition-all p-6 border-right border-white/10 overflow-y-auto">
+             <h2 class="text-xl font-black mb-6 uppercase">Settings</h2>
+             <button onclick="resetSystem()" class="text-red-500 text-[10px] font-black uppercase">Reset System</button>
+        </div>
+
+        <div id="page-log" class="page active">
+            <div class="history-card">
+                <form id="mainForm">
+                    <label class="text-[10px] font-black opacity-50 uppercase">Select Client</label>
+                    <select id="f-client" required class="modern-input"></select>
+                    
+                    <label class="text-[10px] font-black opacity-50 uppercase">Select Item</label>
+                    <select id="f-item" required class="modern-input"></select>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><label class="text-[10px] font-black opacity-50 uppercase">Qty</label><input type="number" id="f-qty" class="modern-input" value="1"></div>
+                        <div><label class="text-[10px] font-black opacity-50 uppercase">Price (R)</label><input type="number" step="any" id="f-price" class="modern-input"></div>
+                    </div>
+                    <button type="submit" class="w-full p-5 rounded-2xl font-black bg-blue-600 text-white uppercase shadow-xl">Save Record</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="page-finance" class="page"><div id="finance-stats"></div></div>
+        <div id="page-history" class="page"><div id="history-content"></div></div>
+        <div id="page-stock" class="page">
+             <div class="history-card">
+                 <input type="text" id="s-name" placeholder="Item Name" class="modern-input">
+                 <button onclick="addStockItem()" class="w-full bg-blue-600 p-3 rounded-xl font-black text-xs text-white">Add Stock</button>
+             </div>
+             <div id="list-stock"></div>
+        </div>
+
+        <nav class="nav-bar">
+            <div onclick="switchTab('finance')" id="nav-finance" class="nav-btn"><i class="fas fa-chart-bar text-xl"></i><span>Stats</span></div>
+            <div onclick="switchTab('log')" id="nav-log" class="nav-btn active"><i class="fas fa-plus-square text-xl"></i><span>Create</span></div>
+            <div onclick="switchTab('history')" id="nav-history" class="nav-btn"><i class="fas fa-list"></i><span>History</span></div>
+            <div onclick="switchTab('stock')" id="nav-stock" class="nav-btn"><i class="fas fa-box"></i><span>Stock</span></div>
+        </nav>
+    </div>
+
+    <script>
+        // --- YOCO & LICENSE SETTINGS ---
+        const YOCO_LIVE_KEY = 'pk_live_313c4166Kbg3L1N84014';
+        const R55_CENTS = 5500;
+        
+        // Initialize Data
+        let access = JSON.parse(localStorage.getItem('simply_pro_access')) || { active: false, expiry: 0, code: '' };
+        let stock = JSON.parse(localStorage.getItem('SO_DB_STOCK_V10')) || {};
+        let clients = JSON.parse(localStorage.getItem('SO_DB_CLIENTS_V10')) || ["CASH CUSTOMER"];
+        let data = JSON.parse(localStorage.getItem('SO_DB_DATA_V10')) || [];
+        
+        // Ensure Default Currency is ZAR
+        let settings = JSON.parse(localStorage.getItem('SO_DB_SET_V10')) || { 
+            coName: "My Business", cur: "R", theme: "dark-mode" 
+        };
+        settings.cur = "R"; // Force ZAR
+
+        function checkSubscription() {
+            const now = new Date().getTime();
+            const lock = document.getElementById('subscription-lock');
+            const app = document.getElementById('app-container');
+
+            if (!access.active || now > access.expiry) {
+                lock.style.display = 'flex';
+                app.style.display = 'none';
+                initYoco();
+            } else {
+                lock.style.display = 'none';
+                app.style.display = 'block';
+                document.getElementById('license-label').innerText = "Personal Code: " + access.code;
+                refreshUI();
+            }
+        }
+
+        function initYoco() {
+            const yoco = new window.YocoSDK({ publicKey: YOCO_LIVE_KEY });
+            const btn = document.getElementById('yoco-pay-button');
+
+            btn.onclick = function() {
+                btn.innerText = "OPENING SECURE YOCO...";
+                yoco.showPaymentWidget({
+                    amountInCents: R55_CENTS,
+                    currency: 'ZAR',
+                    name: 'Simply Orders Pro',
+                    description: '30-Day License Code',
+                    callback: function(result) {
+                        if (result.error) {
+                            alert("Payment Failed: " + result.error.message);
+                            btn.innerText = "Activate Access Now";
+                        } else {
+                            const newCode = 'SO-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+                            access = {
+                                active: true,
+                                code: newCode,
+                                expiry: new Date().getTime() + (30 * 24 * 60 * 60 * 1000)
+                            };
+                            localStorage.setItem('simply_pro_access', JSON.stringify(access));
+                            alert("Success! Your Code: " + newCode);
+                            location.reload();
+                        }
+                    }
+                });
+            };
+        }
+
+        function switchTab(t){ 
+            document.querySelectorAll('.page, .nav-btn').forEach(el => el.classList.remove('active')); 
+            document.getElementById('page-'+t).classList.add('active'); 
+            document.getElementById('nav-'+t).classList.add('active'); 
+            refreshUI(); 
+        }
+
+        function refreshUI() {
+            const cur = settings.cur;
+            // Update Selects
+            document.getElementById('f-client').innerHTML = clients.map(c => `<option value="${c}">${c}</option>`).join('');
+            document.getElementById('f-item').innerHTML = '<option value="">SELECT ITEM</option>' + Object.keys(stock).map(k => `<option value="${k}">${k}</option>`).join('');
+            
+            // Render Stock List
+            document.getElementById('list-stock').innerHTML = Object.keys(stock).map(k => `
+                <div class="history-card flex justify-between items-center">
+                    <div><b class="uppercase">${k}</b><p class="text-[10px] opacity-60">Price: ${cur}${stock[k].sale}</p></div>
+                </div>`).join('');
+        }
+
+        function addStockItem() {
+            const name = document.getElementById('s-name').value;
+            if(!name) return;
+            stock[name] = { qty: 0, cost: 0, sale: 0 };
+            localStorage.setItem('SO_DB_STOCK_V10', JSON.stringify(stock));
+            document.getElementById('s-name').value = '';
+            refreshUI();
+        }
+
+        function toggleSidebar() {
+            const sb = document.getElementById('sidebar');
+            const ov = document.getElementById('overlay');
+            if(sb.style.left === '0px') { sb.style.left = '-310px'; ov.classList.add('hidden'); }
+            else { sb.style.left = '0px'; ov.classList.remove('hidden'); }
+        }
+
+        function resetSystem() { if(confirm('Reset all data?')) { localStorage.clear(); location.reload(); } }
+
+        window.onload = checkSubscription;
+    </script>
+</body>
+</html>
